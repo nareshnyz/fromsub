@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Content Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root{
+    --bg: #12101c;
+    --bg-2: #1a1730;
+    --panel: #1e1a35;
+    --panel-2: #241f42;
+    --border: #362f5c;
+    --text: #ece9f7;
+    --muted: #9a92c2;
+    --accent: #b18aff;
+    --accent-2: #4fd8c4;
+    --danger: #ff8a8a;
+  }
+
+  @keyframes bgDrift{
+    0%,100%{ background-position:0% 50%; }
+    50%{ background-position:100% 50%; }
+  }
+  @keyframes fadeUp{
+    from{ opacity:0; transform:translateY(12px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  @keyframes popToast{
+    0%{ transform:translateY(6px) scale(.9); opacity:0; }
+    100%{ transform:translateY(0) scale(1); opacity:1; }
+  }
+  @keyframes flashOut{
+    0%{ box-shadow:0 0 0 0 rgba(177,138,255,0.55); }
+    100%{ box-shadow:0 0 0 14px rgba(177,138,255,0); }
+  }
+  @keyframes spinOnce{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(360deg); }
+  }
+
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(120deg, var(--bg), var(--bg-2), var(--bg));
+    background-size: 200% 200%;
+    animation: bgDrift 16s ease infinite;
+    padding: 24px;
+    color: var(--text);
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.5rem; font-weight: 700; margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: fadeUp .5s ease both;
+  }
+  p.desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 16px; animation: fadeUp .5s ease .05s both; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .panels { display: flex; gap: 18px; }
+  .panel { flex: 1; display: flex; flex-direction: column; animation: fadeUp .5s ease .12s both; }
+  label { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em; display: block; }
+
+  textarea {
+    width: 100%; height: 440px; font-family: 'Courier New', monospace; font-size: 0.74rem;
+    border: 1.5px solid var(--border); border-radius: 8px; padding: 12px; resize: vertical;
+    background: var(--panel); color: var(--text); outline: none; line-height: 1.5;
+    transition: border-color .25s ease, box-shadow .25s ease;
+  }
+  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(177,138,255,0.18); }
+  #output { background: var(--panel-2); }
+  #output.flash { animation: flashOut .7s ease; }
+
+  .btn-row { display: flex; gap: 10px; margin: 14px 0; flex-wrap: wrap; align-items: center; animation: fadeUp .5s ease .18s both; }
+  button {
+    padding: 10px 22px; border: none; border-radius: 7px; font-size: 0.875rem; font-weight: 600;
+    cursor: pointer; transition: transform .15s cubic-bezier(.34,1.56,.64,1), filter .15s ease, box-shadow .15s ease;
+  }
+  button:active { transform: scale(.95); }
+  #processBtn { background: linear-gradient(90deg, var(--accent), #8f6cf0); color: #fff; }
+  #processBtn:hover { filter: brightness(1.1); box-shadow: 0 4px 16px rgba(177,138,255,0.35); transform: translateY(-1px); }
+  #copyBtn { background: linear-gradient(90deg, var(--accent-2), #35b3a1); color: #0d1f1c; }
+  #copyBtn:hover { filter: brightness(1.1); box-shadow: 0 4px 16px rgba(79,216,196,0.3); transform: translateY(-1px); }
+  #clearBtn { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+  #clearBtn:hover { color: var(--text); border-color: var(--danger); }
+
+  .stats { font-size: 0.77rem; color: var(--muted); margin-top: 6px; min-height: 18px; font-family: 'Courier New', monospace; }
+  .rules-box {
+    background: var(--panel); border: 1.5px solid var(--border); border-radius: 8px; padding: 13px 16px;
+    margin-bottom: 16px; font-size: 0.8rem; color: var(--muted); line-height: 1.75;
+    animation: fadeUp .5s ease .08s both;
+  }
+  .rules-box strong { color: var(--text); }
+  code { background: rgba(177,138,255,0.14); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 0.78rem; font-family: 'Courier New', monospace; }
+
+  .toast {
+    display: none; background: linear-gradient(90deg, var(--accent-2), var(--accent));
+    color: #14102a; padding: 8px 16px; border-radius: 6px; font-size: 0.8rem; margin-left: 10px; font-weight: 700;
+  }
+  .toast.show { display: inline-block; animation: popToast .25s cubic-bezier(.34,1.56,.64,1); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Email Content Editor</h1>
+  <p class="desc">Paste your raw email source on the left, click <strong>Process</strong>, and get the transformed output on the right.</p>
+
+  <div class="rules-box">
+    <strong>Transformations applied:</strong><br>
+    1. Finds whichever of <code>From:</code> / <code>Subject:</code> / <code>To:</code> / <code>Date:</code> / <code>Content-Type:</code> / <code>Content-Transfer-Encoding:</code> appears <em>first</em> in the content — removes everything above that line<br>
+    2. All <code>&lt;/style&gt;</code> tags inside the content are <em>removed</em><br>
+    3. Everything after the last <code>&lt;/html&gt;</code> is replaced with <code>&lt;/style&gt;</code><br>
+    4. <code>From:</code> header — display name kept as-is, email address replaced → <code>From: "Name" &lt;{listid}&gt;</code><br>
+    5. <code>To:</code> header → <code>To: {to}</code><br>
+    6. <code>Date:</code> header → <code>Date: {hdt}</code><br>
+    7. <code>Subject:</code> header — left unchanged
+  </div>
+
+  <div class="btn-row">
+    <button id="processBtn" onclick="processContent()">Process</button>
+    <button id="copyBtn" onclick="copyOutput()">Copy Output</button>
+    <button id="clearBtn" onclick="clearAll()">Clear All</button>
+    <span class="toast" id="toast">Copied!</span>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <label>Input — Paste raw email here</label>
+      <textarea id="input" placeholder="Paste your raw email source here..."></textarea>
+      <div class="stats" id="inStats"></div>
+    </div>
+    <div class="panel">
+      <label>Output — Processed result</label>
+      <textarea id="output" readonly placeholder="Processed output will appear here after clicking Process..."></textarea>
+      <div class="stats" id="outStats"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function processContent() {
+    let text = document.getElementById('input').value;
+    if (!text.trim()) {
+      alert('Please paste email content first.');
+      return;
+    }
+
+    let result = text;
+
+    // ── STEP 1: Find earliest of From / Subject / To / Date / Content-Type / Content-Transfer-Encoding ──
+    const headerPatterns = [
+      /^From:\s*/m,
+      /^Subject:\s*/m,
+      /^To:\s*/m,
+      /^Date:\s*/m,
+      /^Content-Type:\s*/m,
+      /^Content-Transfer-Encoding:\s*/m,
+    ];
+
+    let earliestIndex = -1;
+
+    for (const pattern of headerPatterns) {
+      const match = pattern.exec(result);
+      if (match !== null) {
+        if (earliestIndex === -1 || match.index < earliestIndex) {
+          earliestIndex = match.index;
+        }
+      }
+    }
+
+    let removedAbove = false;
+    if (earliestIndex > 0) {
+      result = result.substring(earliestIndex);
+      removedAbove = true;
+    }
+
+    // ── STEP 2: Remove all </style> tags ──────────────────────────────────────
+    const styleCount = (result.match(/<\/style>/gi) || []).length;
+    result = result.replace(/<\/style>/gi, '');
+
+    // ── STEP 3: Find last </html> and replace everything after it with </style>
+    const htmlCloseIdx = result.toLowerCase().lastIndexOf('</html>');
+    if (htmlCloseIdx !== -1) {
+      result = result.substring(0, htmlCloseIdx + 7) + '\n</style>';
+    } else {
+      result = result.trimEnd() + '\n</style>';
+    }
+
+    // ── STEP 4: Replace From: header — keep display name, swap only the email ──
+    let fromChanged = false;
+    result = result.replace(/^From:\s*("[^"]*"|[^<\r\n]+?)\s*<[^>]+>[\t ]*$/m, (m, name) => {
+      fromChanged = true;
+      return `From: ${name} <{listid}>`;
+    });
+
+    // ── STEP 5: Replace To: header ────────────────────────────────────────────
+    result = result.replace(/^To:\s*(?!\{to\})[^\r\n]+?[\t ]*$/m, 'To: {to}');
+
+    // ── STEP 6: Replace Date: header ──────────────────────────────────────────
+    result = result.replace(/^Date:\s*(?!\{hdt\})[^\r\n]+?[\t ]*$/m, 'Date: {hdt}');
+
+    // ── STEP 7: Subject: header — left untouched (no replacement) ─────────────
+
+    const outEl = document.getElementById('output');
+    outEl.value = result;
+    outEl.classList.remove('flash');
+    void outEl.offsetWidth; // restart animation
+    outEl.classList.add('flash');
+
+    document.getElementById('inStats').textContent = `Input: ${text.length.toLocaleString()} chars`;
+    document.getElementById('outStats').textContent =
+      `Output: ${result.length.toLocaleString()} chars  |  Removed above header: ${removedAbove ? 'Yes ✓' : 'Nothing to remove'}  |  From: name kept: ${fromChanged ? 'Yes ✓' : 'Not found'}  |  Subject: unchanged  |  </style> removed: ${styleCount}`;
+  }
+
+  function copyOutput() {
+    const out = document.getElementById('output');
+    if (!out.value) { alert('Nothing to copy yet. Click Process first.'); return; }
+    navigator.clipboard.writeText(out.value).then(() => {
+      const toast = document.getElementById('toast');
+      toast.classList.remove('show');
+      void toast.offsetWidth;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }).catch(() => { out.select(); document.execCommand('copy'); });
+  }
+
+  function clearAll() {
+    document.getElementById('input').value = '';
+    document.getElementById('output').value = '';
+    document.getElementById('inStats').textContent = '';
+    document.getElementById('outStats').textContent = '';
+  }
+
+  document.getElementById('input').addEventListener('input', function () {
+    document.getElementById('inStats').textContent = `Input: ${this.value.length.toLocaleString()} chars`;
+  });
+</script>
+</body>
+</html>
